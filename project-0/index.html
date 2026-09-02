@@ -4,8 +4,56 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Project 0</title>
+    <link rel="stylesheet" href="../styles.css">
+    <style>
+        body {
+            max-width: 1000px;
+            margin: 40px auto;
+            padding: 0 20px;
+        }
+
+        .image-row {
+            display: flex;
+            gap: 20px;
+            margin-bottom: 40px;
+        }
+
+        img {
+            max-width: 100%;
+            height: auto;
+        }
+
+        .image-row img {
+            width: 50%;
+        }
+    </style>
 </head>
 <body>
     <h1>Project 0</h1>
+
+    <h2>Part 1: Selfie</h2>
+    <div class="image-row">
+        <img src="media/Selfie%20Far.jpg" alt="Selfie far">
+        <img src="media/Selfie%20Close.jpg" alt="Selfie close">
+    </div>
+    <p>
+        With a shorter focal length at a closer distance, the camera is still able to 
+        capture the entire face, but sees parts of the face that are offset from center
+        at more extreme angles, causing distortion. The edges of shapes also block more,
+        causing the ears to not be visible.
+    </p>
+
+    <h2>Part 2: Architecture</h2>
+    <div class="image-row">
+        <img src="media/Building%20Far.jpg" alt="Building far">
+        <img src="media/Building%20Close.jpg" alt="Building close">
+    </div>
+    <p>
+        With the presence of sharp angles in the building, the "extreme angles" mentioned
+        in Part 1 are more apparent.
+    </p>
+
+    <h2>Part 3: Dolly</h2>
+    <img src="media/Dolly.gif" alt="Dolly">
 </body>
 </html>
