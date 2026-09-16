@@ -49,7 +49,7 @@
 
     <h2>Multi-Scale Pyramid Alignment</h2>
     <p>Results using pyramid NCC, including the provided JPEG and full-resolution TIFF images.</p>
-    <p>Computed displacements are reported as <code>(dy, dx)</code>: row shift, then column shift.</p>
+    <p>Computed displacements are reported as (dy, dx): row shift, then column shift.</p>
     <table>
         <thead><tr><th>Image</th><th>G → B</th><th>R → B</th></tr></thead>
         <tbody>
@@ -85,9 +85,12 @@
         <figure><img src="media/three_generations.jpg" alt="Colorized three generations"><figcaption>three generations</figcaption></figure>
         <figure><img src="media/wharf.jpg" alt="Colorized wharf"><figcaption>wharf</figcaption></figure>
     </div>
+    <p>
+        Emir did not align well, though it was close. I did try tuning the parameters, with no success. To fix it, I would probably have to do 
+        more processing on the channel images to make them more uniform so NCC can find the correct alignment.
+    </p>
 
     <h2>Additional Images</h2>
-    <p>I also ran the same fixed-parameter pipeline on several additional glass-plate scans.</p>
     <div class="gallery">
         <figure><img src="media/arch.jpg" alt="Colorized arch"><figcaption>arch</figcaption></figure>
         <figure><img src="media/mosque.jpg" alt="Colorized mosque"><figcaption>mosque</figcaption></figure>
