@@ -1,0 +1,98 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Project 1: Colorizing the Prokudin-Gorskii Collection</title>
+    <link rel="stylesheet" href="../styles.css">
+    <style>
+        body { max-width: 1100px; margin: 40px auto; padding: 0 20px; }
+        .gallery { display: grid; grid-template-columns: repeat(auto-fit, minmax(250px, 1fr)); gap: 20px; }
+        figure { margin: 0; }
+        img { width: 100%; height: auto; display: block; }
+        figcaption { margin-top: 7px; text-align: center; }
+        code { background: #f2f2f2; padding: 2px 4px; }
+        table { border-collapse: collapse; margin: 16px 0 28px; }
+        th, td { border: 1px solid #bbb; padding: 7px 12px; text-align: left; }
+    </style>
+</head>
+<body>
+    <h1>Project 1: Images of the Russian Empire</h1>
+    <p>
+        This project colorizes Sergei Prokudin-Gorskii's stacked glass-plate scans.
+        Each input consists of blue, green, and red exposures arranged vertically.
+    </p>
+
+    <h2>Approach</h2>
+    <p>
+        I split each grayscale scan into its B, G, and R thirds, align G and R to B,
+        and stack the aligned channels into an RGB image. I use normalized cross
+        correlation (NCC) as the matching metric. NCC compares image structure rather
+        than absolute brightness, which makes it more reliable across the three exposures.
+        I ignore a border while scoring so the glass-plate frame and displaced array wraparound do
+        not affect alignment.
+    </p>
+    <p>
+        For the small JPEGs, I exhaustively search displacements in a ±15-pixel window.
+        For the large TIFFs, I use a coarse-to-fine image pyramid: align the smallest
+        whole-image version first, double that estimate at each higher-resolution level,
+        and refine it in a small local window.
+    </p>
+
+    <h2>Single-Scale Alignment</h2>
+    <p>Results using brute-force NCC on the provided low-resolution JPEG images.</p>
+    <div class="gallery">
+        <figure><img src="media/cathedral_single_scale.jpg" alt="Colorized cathedral"><figcaption>cathedral</figcaption></figure>
+        <figure><img src="media/monastery_single_scale.jpg" alt="Colorized monastery"><figcaption>monastery</figcaption></figure>
+        <figure><img src="media/tobolsk_single_scale.jpg" alt="Colorized tobolsk"><figcaption>tobolsk</figcaption></figure>
+    </div>
+
+    <h2>Multi-Scale Pyramid Alignment</h2>
+    <p>Results using pyramid NCC, including the provided JPEG and full-resolution TIFF images.</p>
+    <p>Computed displacements are reported as <code>(dy, dx)</code>: row shift, then column shift.</p>
+    <table>
+        <thead><tr><th>Image</th><th>G → B</th><th>R → B</th></tr></thead>
+        <tbody>
+            <tr><td>cathedral</td><td>(5, 2)</td><td>(12, 3)</td></tr>
+            <tr><td>monastery</td><td>(-3, 2)</td><td>(3, 2)</td></tr>
+            <tr><td>tobolsk</td><td>(3, 3)</td><td>(6, 3)</td></tr>
+            <tr><td>church</td><td>(25, 4)</td><td>(58, -4)</td></tr>
+            <tr><td>emir</td><td>(49, 24)</td><td>(104, 56)</td></tr>
+            <tr><td>harvesters</td><td>(60, 17)</td><td>(124, 14)</td></tr>
+            <tr><td>icon</td><td>(41, 17)</td><td>(89, 23)</td></tr>
+            <tr><td>ilemselga</td><td>(40, 7)</td><td>(130, 11)</td></tr>
+            <tr><td>melons</td><td>(82, 11)</td><td>(178, 13)</td></tr>
+            <tr><td>religious painting</td><td>(28, 3)</td><td>(68, 7)</td></tr>
+            <tr><td>self portrait</td><td>(79, 29)</td><td>(176, 36)</td></tr>
+            <tr><td>siren</td><td>(49, -6)</td><td>(96, -25)</td></tr>
+            <tr><td>three generations</td><td>(53, 14)</td><td>(112, 11)</td></tr>
+            <tr><td>wharf</td><td>(15, -7)</td><td>(83, -16)</td></tr>
+        </tbody>
+    </table>
+    <div class="gallery">
+        <figure><img src="media/cathedral.jpg" alt="Pyramid-aligned cathedral"><figcaption>cathedral</figcaption></figure>
+        <figure><img src="media/monastery.jpg" alt="Pyramid-aligned monastery"><figcaption>monastery</figcaption></figure>
+        <figure><img src="media/tobolsk.jpg" alt="Pyramid-aligned tobolsk"><figcaption>tobolsk</figcaption></figure>
+        <figure><img src="media/church.jpg" alt="Colorized church"><figcaption>church</figcaption></figure>
+        <figure><img src="media/emir.jpg" alt="Colorized emir"><figcaption>emir</figcaption></figure>
+        <figure><img src="media/harvesters.jpg" alt="Colorized harvesters"><figcaption>harvesters</figcaption></figure>
+        <figure><img src="media/icon.jpg" alt="Colorized icon"><figcaption>icon</figcaption></figure>
+        <figure><img src="media/ilemselga.jpg" alt="Colorized ilemselga"><figcaption>ilemselga</figcaption></figure>
+        <figure><img src="media/melons.jpg" alt="Colorized melons"><figcaption>melons</figcaption></figure>
+        <figure><img src="media/religious_painting.jpg" alt="Colorized religious painting"><figcaption>religious painting</figcaption></figure>
+        <figure><img src="media/self_portrait.jpg" alt="Colorized self portrait"><figcaption>self portrait</figcaption></figure>
+        <figure><img src="media/siren.jpg" alt="Colorized siren"><figcaption>siren</figcaption></figure>
+        <figure><img src="media/three_generations.jpg" alt="Colorized three generations"><figcaption>three generations</figcaption></figure>
+        <figure><img src="media/wharf.jpg" alt="Colorized wharf"><figcaption>wharf</figcaption></figure>
+    </div>
+
+    <h2>Additional Images</h2>
+    <p>I also ran the same fixed-parameter pipeline on several additional glass-plate scans.</p>
+    <div class="gallery">
+        <figure><img src="media/arch.jpg" alt="Colorized arch"><figcaption>arch</figcaption></figure>
+        <figure><img src="media/mosque.jpg" alt="Colorized mosque"><figcaption>mosque</figcaption></figure>
+        <figure><img src="media/roof.jpg" alt="Colorized roof"><figcaption>roof</figcaption></figure>
+        <figure><img src="media/vase.jpg" alt="Colorized vase"><figcaption>vase</figcaption></figure>
+    </div>
+</body>
+</html>
