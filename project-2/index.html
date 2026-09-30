@@ -1,0 +1,334 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Project 2: Fun with Filters and Frequencies</title>
+    <link rel="stylesheet" href="../styles.css">
+    <style>
+        body { max-width: 1100px; margin: 40px auto; padding: 0 20px; }
+        .gallery { display: grid; grid-template-columns: repeat(auto-fit, minmax(250px, 1fr)); gap: 20px; margin: 20px 0; }
+        .gallery.small { grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); }
+        figure { margin: 0 0 20px; }
+        img { width: 100%; height: auto; display: block; }
+        .filters img { image-rendering: pixelated; }
+        figcaption { margin-top: 7px; text-align: center; }
+        h3 { font-size: 28px; margin-top: 40px; }
+        p, li { line-height: 1.5; }
+        code { background: #222; padding: 2px 4px; }
+        pre { background: #111; border: 1px solid #333; padding: 14px; text-align: left; overflow-x: auto; }
+        pre code { background: none; padding: 0; }
+        table { border-collapse: collapse; margin: 16px auto 28px; }
+        th, td { border: 1px solid #bbb; padding: 7px 12px; text-align: left; }
+    </style>
+</head>
+<body>
+    <h1>Project 2: Fun with Filters and Frequencies</h1>
+
+    <h2>Part 1: Fun with Filters</h2>
+
+    <h3>Part 1.1: Convolutions from Scratch</h3>
+    <p>
+        Convolution with zero padding and "same" output size. The padding matches
+        <code>scipy.signal.convolve2d</code>, including for even-sized kernels like D<sub>x</sub> = [1, −1].
+    </p>
+<pre><code>def same_padding_amounts(kh, kw):
+    """Padding for (top, bottom, left, right), placed the same way scipy does it."""
+    ch, cw = (kh - 1) // 2, (kw - 1) // 2
+    return kh - 1 - ch, ch, kw - 1 - cw, cw
+
+def zero_pad(image, top, bottom, left, right):
+    h, w = image.shape
+    padded = np.zeros((h + top + bottom, w + left + right), dtype=float)
+    padded[top:top + h, left:left + w] = image
+    return padded
+
+def pad_for_same(image, kernel):
+    return zero_pad(image, *same_padding_amounts(*kernel.shape))
+
+def conv2d_four_loops(image, kernel):
+    """out[i, j] = sum over m, n of kernel[m, n] * image[i - m, j - n]"""
+    kh, kw = kernel.shape
+    h, w = image.shape
+    padded = pad_for_same(image, kernel)
+    out = np.zeros((h, w), dtype=float)
+    for i in range(h):
+        for j in range(w):
+            total = 0.0
+            for m in range(kh):
+                for n in range(kw):
+                    total += kernel[m, n] * padded[i + kh - 1 - m, j + kw - 1 - n]
+            out[i, j] = total
+    return out
+
+def conv2d_two_loops(image, kernel):
+    """Same as the four-loop version, but flips the kernel once and multiplies whole windows."""
+    kh, kw = kernel.shape
+    h, w = image.shape
+    padded = pad_for_same(image, kernel)
+    flipped = kernel[::-1, ::-1]
+    out = np.zeros((h, w), dtype=float)
+    for i in range(h):
+        for j in range(w):
+            out[i, j] = np.sum(padded[i:i + kh, j:j + kw] * flipped)
+    return out</code></pre>
+    <p>
+        The four-loop version reads the image backward, which is where the minus signs in the convolution formula come
+        from. The two-loop version flips the kernel once instead.
+    </p>
+    <p>Runtime on my selfie (grayscale, 512×384):</p>
+    <table>
+        <thead><tr><th>Kernel</th><th>Four loops</th><th>Two loops</th><th>scipy</th><th>Max |difference| vs scipy</th></tr></thead>
+        <tbody>
+            <tr><td>9×9 box</td><td>2.85 s</td><td>0.33 s</td><td>0.016 s</td><td>7.8 × 10<sup>−16</sup></td></tr>
+            <tr><td>D<sub>x</sub> (1×2)</td><td>0.09 s</td><td>0.31 s</td><td>0.001 s</td><td>0</td></tr>
+            <tr><td>D<sub>y</sub> (2×1)</td><td>0.10 s</td><td>0.30 s</td><td>0.002 s</td><td>0</td></tr>
+        </tbody>
+    </table>
+    <p>
+        <b>Runtime:</b> all three give the same result, up to rounding. For the 9×9 box filter, two loops is about 9×
+        faster than four, and scipy is another 20× faster. For the tiny D<sub>x</sub>/D<sub>y</sub> kernels, four loops
+        is faster, probably because of the two-loop version's per-window overhead.
+    </p>
+    <p>
+        <b>Boundaries:</b> zero padding treats the image as if it were surrounded by black, so the box-filtered image
+        darkens toward its border and D<sub>x</sub>/D<sub>y</sub> pick up an edge around the frame.
+    </p>
+    <div class="gallery">
+        <figure><img src="media/1.1/selfie_gray.jpg" alt="Grayscale selfie"><figcaption>Original</figcaption></figure>
+        <figure><img src="media/1.1/selfie_box9.jpg" alt="Selfie with 9x9 box filter"><figcaption>9×9 box filter</figcaption></figure>
+        <figure><img src="media/1.1/selfie_dx.jpg" alt="Selfie convolved with Dx"><figcaption>D<sub>x</sub> (gray = 0)</figcaption></figure>
+        <figure><img src="media/1.1/selfie_dy.jpg" alt="Selfie convolved with Dy"><figcaption>D<sub>y</sub> (gray = 0)</figcaption></figure>
+    </div>
+
+    <h3>Part 1.2: Finite Difference Operator</h3>
+    <p>
+        I mirrored the image at its borders so the frame isn't detected as an edge.
+    </p>
+    <div class="gallery">
+        <figure><img src="media/1.2/cameraman_gray.jpg" alt="Cameraman"><figcaption>Original</figcaption></figure>
+        <figure><img src="media/1.2/cameraman_dx.jpg" alt="Cameraman x derivative"><figcaption>∂f/∂x (gray = 0)</figcaption></figure>
+        <figure><img src="media/1.2/cameraman_dy.jpg" alt="Cameraman y derivative"><figcaption>∂f/∂y (gray = 0)</figcaption></figure>
+        <figure><img src="media/1.2/cameraman_grad_mag.jpg" alt="Gradient magnitude"><figcaption>Gradient magnitude</figcaption></figure>
+        <figure><img src="media/1.2/cameraman_edges.png" alt="Binarized edges"><figcaption>Edges, threshold 0.25</figcaption></figure>
+    </div>
+    <p>Thresholds tried:</p>
+    <div class="gallery small">
+        <figure><img src="media/1.2/sweep/edges_0.10.png" alt="Threshold 0.10"><figcaption>0.10</figcaption></figure>
+        <figure><img src="media/1.2/sweep/edges_0.15.png" alt="Threshold 0.15"><figcaption>0.15</figcaption></figure>
+        <figure><img src="media/1.2/sweep/edges_0.20.png" alt="Threshold 0.20"><figcaption>0.20</figcaption></figure>
+        <figure><img src="media/1.2/sweep/edges_0.25.png" alt="Threshold 0.25"><figcaption>0.25</figcaption></figure>
+        <figure><img src="media/1.2/sweep/edges_0.30.png" alt="Threshold 0.30"><figcaption>0.30</figcaption></figure>
+        <figure><img src="media/1.2/sweep/edges_0.35.png" alt="Threshold 0.35"><figcaption>0.35</figcaption></figure>
+    </div>
+    <p>
+        Lower thresholds let in noise from the grass; higher ones break up the real outlines. I chose 0.25 because it
+        removes most of the grass noise while keeping solid edge lines.
+    </p>
+
+    <h3>Part 1.3: Derivative of Gaussian (DoG) Filter</h3>
+    <p>
+        Blurring weakens the gradients, so I used a lower threshold (0.10) than in 1.2.
+    </p>
+    <div class="gallery">
+        <figure><img src="media/1.3/cameraman_blurred.jpg" alt="Blurred cameraman"><figcaption>Blurred (σ = 1)</figcaption></figure>
+        <figure><img src="media/1.3/blur_dx.jpg" alt="Blurred x derivative"><figcaption>∂/∂x</figcaption></figure>
+        <figure><img src="media/1.3/blur_dy.jpg" alt="Blurred y derivative"><figcaption>∂/∂y</figcaption></figure>
+        <figure><img src="media/1.3/blur_grad_mag.jpg" alt="Blurred gradient magnitude"><figcaption>Gradient magnitude</figcaption></figure>
+        <figure><img src="media/1.3/blur_edges.png" alt="Blurred edges"><figcaption>Edges, threshold 0.10</figcaption></figure>
+    </div>
+    <p>Thresholds tried:</p>
+    <div class="gallery small">
+        <figure><img src="media/1.3/sweep/edges_0.040.png" alt="Threshold 0.04"><figcaption>0.04</figcaption></figure>
+        <figure><img src="media/1.3/sweep/edges_0.060.png" alt="Threshold 0.06"><figcaption>0.06</figcaption></figure>
+        <figure><img src="media/1.3/sweep/edges_0.080.png" alt="Threshold 0.08"><figcaption>0.08</figcaption></figure>
+        <figure><img src="media/1.3/sweep/edges_0.100.png" alt="Threshold 0.10"><figcaption>0.10</figcaption></figure>
+        <figure><img src="media/1.3/sweep/edges_0.120.png" alt="Threshold 0.12"><figcaption>0.12</figcaption></figure>
+        <figure><img src="media/1.3/sweep/edges_0.150.png" alt="Threshold 0.15"><figcaption>0.15</figcaption></figure>
+    </div>
+
+    <p><b>Comparison</b> (left: 1.2, right: blurred first):</p>
+    <figure><img src="media/1.3/compare_grad_mag.jpg" alt="Gradient magnitude comparison"><figcaption>Gradient magnitude</figcaption></figure>
+    <figure><img src="media/1.3/compare_edges.png" alt="Edge comparison"><figcaption>Edges</figcaption></figure>
+    <p><b>What differences do you see?</b></p>
+    <p>
+        The Gaussian version eliminates more noise and smooths out the edge lines.
+    </p>
+
+    <p><b>DoG filters.</b> Blurring then differentiating is the same as a single convolution with the derivative of the
+        Gaussian:</p>
+    <div class="gallery small filters">
+        <figure><img src="media/1.3/gaussian_filter.png" alt="Gaussian filter"><figcaption>Gaussian (σ = 1, 7×7)</figcaption></figure>
+        <figure><img src="media/1.3/dog_x_filter.png" alt="DoG x filter"><figcaption>DoG x (gray = 0)</figcaption></figure>
+        <figure><img src="media/1.3/dog_y_filter.png" alt="DoG y filter"><figcaption>DoG y (gray = 0)</figcaption></figure>
+    </div>
+    <div class="gallery">
+        <figure><img src="media/1.3/dog_dx.jpg" alt="DoG x result"><figcaption>DoG x</figcaption></figure>
+        <figure><img src="media/1.3/dog_dy.jpg" alt="DoG y result"><figcaption>DoG y</figcaption></figure>
+        <figure><img src="media/1.3/dog_grad_mag.jpg" alt="DoG gradient magnitude"><figcaption>Gradient magnitude</figcaption></figure>
+        <figure><img src="media/1.3/dog_edges.png" alt="DoG edges"><figcaption>Edges, threshold 0.10</figcaption></figure>
+    </div>
+    <p>
+        The results match blurring then differentiating: the largest difference is 7.16e-16, which is just rounding error.
+    </p>
+
+    <h2>Part 2: Fun with Frequencies!</h2>
+
+    <h3>Part 2.1: Image "Sharpening"</h3>
+    <p>
+        Subtracting a blurred copy from an image leaves its fine details (the high frequencies). Adding α times those
+        details back makes the image look sharper. This fits in one filter, the unsharp mask filter:
+        <code>(1 + α) δ − α G</code>, where δ keeps the image unchanged and G is the Gaussian. I used σ = 2 and α = 1.5.
+    </p>
+    <div class="gallery small filters">
+        <figure><img src="media/2.1/unsharp_filter_alpha1.5.png" alt="Unsharp mask filter"><figcaption>Unsharp mask filter (gray = 0)</figcaption></figure>
+    </div>
+
+    <p><b>Taj Mahal</b></p>
+    <div class="gallery">
+        <figure><img src="media/2.1/taj_original.jpg" alt="Taj original"><figcaption>Original</figcaption></figure>
+        <figure><img src="media/2.1/taj_blurred.jpg" alt="Taj blurred"><figcaption>Blurred</figcaption></figure>
+        <figure><img src="media/2.1/taj_high_freq.jpg" alt="Taj high frequencies"><figcaption>High frequencies (gray = 0)</figcaption></figure>
+        <figure><img src="media/2.1/taj_sharpened.jpg" alt="Taj sharpened"><figcaption>Sharpened</figcaption></figure>
+    </div>
+    <p><b>Red Dead Redemption 2</b></p>
+    <div class="gallery">
+        <figure><img src="media/2.1/rdr2_original.jpg" alt="RDR2 original"><figcaption>Original</figcaption></figure>
+        <figure><img src="media/2.1/rdr2_blurred.jpg" alt="RDR2 blurred"><figcaption>Blurred</figcaption></figure>
+        <figure><img src="media/2.1/rdr2_high_freq.jpg" alt="RDR2 high frequencies"><figcaption>High frequencies (gray = 0)</figcaption></figure>
+        <figure><img src="media/2.1/rdr2_sharpened.jpg" alt="RDR2 sharpened"><figcaption>Sharpened</figcaption></figure>
+    </div>
+    <p><b>Hallway</b></p>
+    <div class="gallery">
+        <figure><img src="media/2.1/hallway_original.jpg" alt="Hallway original"><figcaption>Original</figcaption></figure>
+        <figure><img src="media/2.1/hallway_blurred.jpg" alt="Hallway blurred"><figcaption>Blurred</figcaption></figure>
+        <figure><img src="media/2.1/hallway_high_freq.jpg" alt="Hallway high frequencies"><figcaption>High frequencies (gray = 0)</figcaption></figure>
+        <figure><img src="media/2.1/hallway_sharpened.jpg" alt="Hallway sharpened"><figcaption>Sharpened</figcaption></figure>
+    </div>
+
+    <p><b>Sharpening amount.</b> Left to right: original, then α = 0.5, 1, 2, 4.</p>
+    <figure><img src="media/2.1/taj_alpha_strip.jpg" alt="Taj alpha sweep"><figcaption>Taj Mahal</figcaption></figure>
+    <figure><img src="media/2.1/rdr2_alpha_strip.jpg" alt="RDR2 alpha sweep"><figcaption>Red Dead Redemption 2</figcaption></figure>
+    <figure><img src="media/2.1/hallway_alpha_strip.jpg" alt="Hallway alpha sweep"><figcaption>Hallway</figcaption></figure>
+    <p>
+        Higher α makes the image look sharper, but at high values the edges start to look blown out.
+    </p>
+
+    <p><b>Blur, then re-sharpen.</b> Left to right: original, blurred, re-sharpened.</p>
+    <figure><img src="media/2.1/selfie_resharpen_strip.jpg" alt="Selfie blur and re-sharpen"></figure>
+    
+    <p>
+        The re-sharpened image looks sharper than the blurred one, but it doesn't recover all the detail of the original.
+        Sharpening only boosts detail that's still there, and the blur removed the finest detail completely.
+    </p>
+
+    <h3>Part 2.2: Hybrid Images</h3>
+    <p>
+        Up close we see an image's fine details; from far away we only see its broad shapes. A hybrid combines the details
+        of one image (the image minus its blur) with the blurred version of another.
+    </p>
+    <p>
+        I used σ = 5 for the details and σ = 10 for the blur, on images scaled to at most 800 px. That puts the cutoffs
+        at about 0.037 and 0.019 cycles per pixel (where each filter lets half through). The gap between them keeps the
+        two images from overlapping.
+    </p>
+    <p>
+        I chose these values by trial and error.
+    </p>
+
+    <h3>Wolf + Sheep (full process)</h3>
+    <div class="gallery">
+        <figure><img src="media/2.2/wolf_sheep_input_high.jpg" alt="Wolf"><figcaption>Details from: wolf</figcaption></figure>
+        <figure><img src="media/2.2/wolf_sheep_input_low.jpg" alt="Sheep"><figcaption>Blur from: sheep</figcaption></figure>
+    </div>
+    <div class="gallery">
+        <figure><img src="media/2.2/wolf_sheep_aligned_high.jpg" alt="Aligned wolf"><figcaption>Aligned wolf</figcaption></figure>
+        <figure><img src="media/2.2/wolf_sheep_aligned_low.jpg" alt="Aligned sheep"><figcaption>Aligned sheep</figcaption></figure>
+        <figure><img src="media/2.2/wolf_sheep_high_pass.jpg" alt="High-pass wolf"><figcaption>Wolf details, σ = 5 (gray = 0)</figcaption></figure>
+        <figure><img src="media/2.2/wolf_sheep_low_pass.jpg" alt="Low-pass sheep"><figcaption>Blurred sheep, σ = 10</figcaption></figure>
+    </div>
+    <p>
+        Fourier transforms (log magnitude; the center is the lowest frequencies). The blurred sheep keeps only the
+        center, the wolf's details have the center removed, and the hybrid combines both.
+    </p>
+    <figure><img src="media/2.2/wolf_sheep_fft.jpg" alt="Fourier transforms"></figure>
+    <div class="gallery">
+        <figure><img src="media/2.2/wolf_sheep_hybrid.jpg" alt="Wolf sheep hybrid"><figcaption>Hybrid</figcaption></figure>
+    </div>
+    <figure><img src="media/2.2/wolf_sheep_viewing_distances.jpg" alt="Wolf sheep at decreasing sizes"><figcaption>Shrunk to simulate viewing from farther away</figcaption></figure>
+
+    <h3>Nutmeg + Derek</h3>
+    <div class="gallery">
+        <figure><img src="media/2.2/nutmeg_derek_input_high.jpg" alt="Nutmeg"><figcaption>Details from: Nutmeg</figcaption></figure>
+        <figure><img src="media/2.2/nutmeg_derek_input_low.jpg" alt="Derek"><figcaption>Blur from: Derek</figcaption></figure>
+        <figure><img src="media/2.2/nutmeg_derek_hybrid.jpg" alt="Nutmeg Derek hybrid"><figcaption>Hybrid</figcaption></figure>
+    </div>
+    <figure><img src="media/2.2/nutmeg_derek_viewing_distances.jpg" alt="Nutmeg Derek at decreasing sizes"><figcaption>Shrunk to simulate viewing from farther away</figcaption></figure>
+
+    <h3>Tony Stark + Iron Man</h3>
+    <div class="gallery">
+        <figure><img src="media/2.2/air-fryer_iron-man_input_high.jpg" alt="Tony Stark"><figcaption>Details from: Tony Stark</figcaption></figure>
+        <figure><img src="media/2.2/air-fryer_iron-man_input_low.jpg" alt="Iron Man"><figcaption>Blur from: Iron Man</figcaption></figure>
+        <figure><img src="media/2.2/air-fryer_iron-man_hybrid.jpg" alt="Tony Stark Iron Man hybrid"><figcaption>Hybrid</figcaption></figure>
+    </div>
+    <figure><img src="media/2.2/air-fryer_iron-man_viewing_distances.jpg" alt="Iron Man hybrid at decreasing sizes"><figcaption>Shrunk to simulate viewing from farther away</figcaption></figure>
+
+    <h3>Bells &amp; Whistles: Color</h3>
+    <p>Left to right: no color, color in the details only, color in the blur only, color in both.</p>
+    <figure><img src="media/2.2/wolf_sheep_color_strip.jpg" alt="Color comparison"></figure>
+    <p><b>Does it work better to use color for the high-frequency component, the low-frequency component, or both?</b></p>
+    <p>
+        Color works best on the blurred (low-frequency) image. Color on the details (high-frequency) image barely makes a
+        difference.
+    </p>
+
+    <h3>Part 2.3: Gaussian and Laplacian Stacks</h3>
+    <p>
+        Each Gaussian level blurs the previous one. Since stacks never shrink the image, I doubled the blur at each level
+        (σ = 2, 4, 8, 16) to act like a pyramid. Each Laplacian level is the difference between two neighboring Gaussian
+        levels, and the last one is the blurriest Gaussian level, so all the levels add back up to the original image.
+    </p>
+    <p>Left to right: levels 0 to 4. Laplacian levels are brightened, with gray = 0.</p>
+    <figure><img src="media/2.3/apple_gaussian_stack.jpg" alt="Apple Gaussian stack"><figcaption>Apple, Gaussian stack</figcaption></figure>
+    <figure><img src="media/2.3/apple_laplacian_stack.jpg" alt="Apple Laplacian stack"><figcaption>Apple, Laplacian stack</figcaption></figure>
+    <figure><img src="media/2.3/orange_gaussian_stack.jpg" alt="Orange Gaussian stack"><figcaption>Orange, Gaussian stack</figcaption></figure>
+    <figure><img src="media/2.3/orange_laplacian_stack.jpg" alt="Orange Laplacian stack"><figcaption>Orange, Laplacian stack</figcaption></figure>
+    <figure><img src="media/2.3/mask_gaussian_stack.png" alt="Mask Gaussian stack"><figcaption>Mask, Gaussian stack</figcaption></figure>
+
+    <p>
+        <b>Szeliski Figure 3.42.</b> Rows: Laplacian levels 0, 2 and 3, then all levels added together. Columns: masked
+        apple, masked orange, combined.
+    </p>
+    <figure><img src="media/2.3/fig_3_42.jpg" alt="Recreation of Szeliski Figure 3.42" style="max-width: 700px; margin: 0 auto;"></figure>
+
+    <h3>Part 2.4: Multiresolution Blending</h3>
+    <p>
+        Each Laplacian level is blended using the mask blurred to match that level, then the levels are added up. Fine
+        details meet at a sharp seam while broad color and lighting blend over a wide area, so the seam is hard to see.
+    </p>
+    <div class="gallery">
+        <figure><img src="media/2.4/oraple.jpg" alt="Oraple"><figcaption>The oraple</figcaption></figure>
+    </div>
+
+    <p><b>Custom blends.</b> Left to right: image 1, image 2, pasted with no blending, blended.</p>
+    <figure><img src="media/2.4/eren_compare.jpg" alt="Eren blend comparison"></figure>
+    <div class="gallery">
+        <figure><img src="media/2.4/eren_mask.jpg" alt="Eren mask"><figcaption>Mask (white = image 1)</figcaption></figure>
+        <figure><img src="media/2.4/eren_blend.jpg" alt="Eren blend"><figcaption>Blend</figcaption></figure>
+    </div>
+    <figure><img src="media/2.4/tung_compare.jpg" alt="Tung blend comparison"></figure>
+    <div class="gallery">
+        <figure><img src="media/2.4/tung_mask.jpg" alt="Tung mask"><figcaption>Mask (white = image 1)</figcaption></figure>
+        <figure><img src="media/2.4/tung_blend.jpg" alt="Tung blend"><figcaption>Blend</figcaption></figure>
+    </div>
+    <p>
+        Compared with pasting the images together directly, the multiresolution blend eliminates the visible seam.
+    </p>
+
+    <h2>What I Learned</h2>
+    <p>
+        Filters can be convolved together into a single filter that does the same thing as applying them one after
+        another. This is how the DoG filters and the unsharp mask filter each do their job in one convolution.
+    </p>
+</body>
+</html>
