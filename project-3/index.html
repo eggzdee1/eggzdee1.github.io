@@ -1,0 +1,266 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Project 3: The Power of Flow Models</title>
+    <link rel="stylesheet" href="../styles.css">
+    <style>
+        body { max-width: 1100px; margin: 40px auto; padding: 0 20px; }
+        .gallery { display: grid; grid-template-columns: repeat(auto-fit, minmax(250px, 1fr)); gap: 20px; margin: 20px 0; }
+        .gallery.small { grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); }
+        figure { margin: 0 0 20px; }
+        img { width: 100%; height: auto; display: block; }
+        .narrow { max-width: 700px; margin-left: auto; margin-right: auto; }
+        .hybrid { display: flex; justify-content: center; align-items: flex-end; gap: 40px; flex-wrap: wrap; }
+        .hybrid figure:first-child { width: 400px; max-width: 100%; }
+        .hybrid figure.far img { width: 64px; margin: 0 auto; }
+        figcaption { margin-top: 7px; text-align: center; }
+        h3 { font-size: 32px; margin-top: 50px; }
+        h4 { font-size: 24px; margin-top: 40px; }
+        p, li { line-height: 1.5; }
+        table { border-collapse: collapse; margin: 16px auto 28px; }
+        th, td { border: 1px solid #bbb; padding: 7px 12px; text-align: left; }
+    </style>
+</head>
+<body>
+    <h1>Project 3: The Power of Flow Models</h1>
+
+    <h2>Part A: Exploring the Power of Flow Models</h2>
+
+    <h3>1: Visualizing Training and Sampling</h3>
+
+    <h4>1.1: Constructing Noisy Training Inputs</h4>
+    <p>
+        My image is a Calvin and Hobbes panel.
+    </p>
+    <figure class="narrow"><img src="media/a/calvin.jpg" alt="Calvin and Hobbes desert panel"><figcaption>Source image (before cropping)</figcaption></figure>
+    <figure><img src="media/a/1-1.jpg" alt="Original and noisy versions at t = 0.25, 0.5, 0.75"></figure>
+
+    <h4>1.2: Classical Denoising</h4>
+    <p>
+        Out of σ = 1, 2, 4, 8 and 16, the best blur was 8 at t = 0.25, 4 at t = 0.5 and 2 at t = 0.75.
+    </p>
+    <figure class="narrow" style="max-width: 500px;"><img src="media/a/1-2.jpg" alt="Noisy inputs and best Gaussian blur results"></figure>
+
+    <h4>1.3: One-Step Denoising</h4>
+    <p>
+        Far better than the blur. At t = 0.75 and 0.5 it is close to the original. At t = 0.25 the layout and colors
+        are right, but the small ink marks are smoothed away or redrawn.
+    </p>
+    <figure><img src="media/a/1-3-25.jpg" alt="One-step denoising at t = 0.25"><figcaption>t = 0.25</figcaption></figure>
+    <figure><img src="media/a/1-3-50.jpg" alt="One-step denoising at t = 0.5"><figcaption>t = 0.50</figcaption></figure>
+    <figure><img src="media/a/1-3-75.jpg" alt="One-step denoising at t = 0.75"><figcaption>t = 0.75</figcaption></figure>
+
+    <h4>1.4: Visualizing Velocity</h4>
+    <figure class="narrow" style="max-width: 300px;"><img src="media/a/1-4-original.jpg" alt="Original image"><figcaption>Original</figcaption></figure>
+    <figure><img src="media/a/1-4-25.jpg" alt="Velocity diagnostics at t = 0.25"></figure>
+    <figure><img src="media/a/1-4-50.jpg" alt="Velocity diagnostics at t = 0.5"></figure>
+    <figure><img src="media/a/1-4-75.jpg" alt="Velocity diagnostics at t = 0.75"></figure>
+    <p>
+        The predicted and true updates look nearly the same, noise included, since both have to cancel the noise. The
+        error is almost all on the black ink lines, where the model has to guess exactly where an edge was. It shrinks
+        as t increases, because there is less noise to remove and more of the image is visible.
+    </p>
+
+    <h4>1.5: Iterative Denoising with Euler Sampling</h4>
+    <figure class="narrow"><img src="media/a/1-5-steps.jpg" alt="Euler sampling trajectory from t = 0.5 to 1"></figure>
+    <figure><img src="media/a/1-5-comparison.jpg" alt="Original, blur, one-step and Euler comparison"></figure>
+    <table>
+        <thead><tr><th>Method</th><th>MSE vs. original</th></tr></thead>
+        <tbody>
+            <tr><td>Gaussian blur</td><td>0.0312</td></tr>
+            <tr><td>One step</td><td>0.0059</td></tr>
+            <tr><td>Euler (25 steps)</td><td>0.0072</td></tr>
+        </tbody>
+    </table>
+    <p>
+        Both model-based results are much better than the blur. One step has slightly lower MSE than Euler, but Euler
+        looks sharper. A single prediction gives roughly the average of every image that could be under the noise,
+        which is slightly soft but scores well on MSE. Euler commits to specific sharp details, and they don't always
+        land exactly where the original's were.
+    </p>
+
+    <h4>1.6: Generating Images from Noise</h4>
+    <figure><img src="media/a/1-6.jpg" alt="Five unguided samples"></figure>
+    <p>
+        <b>Subject bias:</b> all five are portraits of a single person against a plain background, even though the
+        prompt never asks for a person. To this model, "a high quality photo" mostly means a portrait. Without
+        guidance, several faces are also badly distorted (seeds 180 and 183).
+    </p>
+
+    <h3>2: Conditional Generation and Guidance</h3>
+
+    <h4>2.1: Classifier-Free Guidance</h4>
+    <figure><img src="media/a/2-1.jpg" alt="Five CFG samples with w = 7"></figure>
+    <p>
+        Compared with 1.6 (same noise), every sample is now a clean, front-facing studio headshot with sharp features and strong lighting, and the
+        distorted faces are gone. Some layout carries over from the same noise (seed 182 keeps the hand by
+        the face; seed 184 keeps the light background), but the guided samples are much less varied. They all look
+        like the same kind of photo.
+    </p>
+
+    <h3>3: Creative Applications</h3>
+
+    <h4>3.1: Image-to-Image Editing</h4>
+    <p><b>Campanile</b></p>
+    <figure><img src="media/a/3-1-campanile.jpg" alt="Campanile edits"></figure>
+
+    <p><b>My images</b></p>
+    <div class="gallery">
+        <figure><img src="media/a/calvin.jpg" alt="Calvin and Hobbes desert panel"><figcaption>Calvin and Hobbes</figcaption></figure>
+        <figure><img src="media/a/frierencopter.jpg" alt="Frieren flying"><figcaption>Frieren</figcaption></figure>
+    </div>
+    <figure><img src="media/a/3-1-calvin.jpg" alt="Desert panel edits"></figure>
+    <figure><img src="media/a/3-1-frierencopter.jpg" alt="Frieren edits"></figure>
+    <p>
+        At the smallest starting times the model falls back on its portrait bias (the desert becomes a woman) or
+        matches only the overall colors (mostly-white Frieren becomes white cups). In between, it keeps the layout but
+        makes it look like a real object: the desert turns into sand dunes at 0.10, and Frieren into a white 3D shape
+        at 0.10 to 0.14.
+    </p>
+
+    <p><b>Web image</b></p>
+    <figure class="narrow"><img src="media/a/walt-mike.jpg" alt="Walter White and Mike in a field"><figcaption>Breaking Bad still</figcaption></figure>
+    <figure><img src="media/a/3-1-walt-mike.jpg" alt="Web image edits"></figure>
+    <p>
+        The two people make the model's portrait bias easy to see: at 0.02 to 0.06 they become a single smiling woman.
+        From 0.10 on there are two men again, and the grassy field comes back by 0.25.
+    </p>
+
+    <p><b>Hand-drawn images</b></p>
+    <div class="gallery">
+        <figure><img src="media/a/deadeye.jpg" alt="Drawing of a cowboy"><figcaption>Drawing 1</figcaption></figure>
+        <figure><img src="media/a/wilderness.jpg" alt="Painting of a forest"><figcaption>Drawing 2</figcaption></figure>
+    </div>
+    <figure><img src="media/a/3-1-deadeye.jpg" alt="Drawing 1 edits"></figure>
+    <figure><img src="media/a/3-1-wilderness.jpg" alt="Drawing 2 edits"></figure>
+    <p>
+        The drawings change the most, since a rough painting is far from what the model thinks of as a photo. At 0.10
+        to 0.25 the cowboy turns into a soft fabric-like object, and the forest becomes a blurry photo
+        of trees. Only at 0.5 do they keep their painted look.
+    </p>
+
+    <h4>3.2: Text-Guided Image Editing</h4>
+    <figure><img src="media/a/3-2-campanile.jpg" alt="Campanile edited toward a sword"><figcaption>"a sword blade held up against the sky"</figcaption></figure>
+    <figure><img src="media/a/3-2-calvin.jpg" alt="Desert panel edited toward a photorealistic desert"><figcaption>"a photorealistic desert landscape"</figcaption></figure>
+    <figure><img src="media/a/3-2-frieren.jpg" alt="Frieren edited toward a crumpled paper ball"><figcaption>"a crumpled up ball of paper"</figcaption></figure>
+    <p>
+        The best results are in the middle. At 0.10 to 0.14 the Campanile becomes a glowing blade held in a hand while
+        the sky and trees stay; at 0.14 the comic desert becomes a real one with the same mesa and cliffs; and at 0.10
+        to 0.25 Frieren is made of crumpled paper. Below 0.06 the prompt takes over completely, and at 0.5 the edit
+        barely shows.
+    </p>
+
+    <h4>3.3: Visual Anagrams</h4>
+    <figure class="narrow"><img src="media/a/3-3-woman-clothes.jpg" alt="Old woman / pile of clothes anagram"><figcaption>Upright: "a sketch of an old woman". Rotated: "a sketch of a pile of clothes".</figcaption></figure>
+    <figure class="narrow"><img src="media/a/3-3-cat-autumn.jpg" alt="Orange cat / autumn forest anagram"><figcaption>Upright: "a watercolor painting of an orange cat". Rotated: "a watercolor painting of an orange autumn forest".</figcaption></figure>
+    <p>
+        The old woman / clothes illusion works well: the folds of cloth are her wrinkles and hair. The cat / forest one
+        is weaker. The cat's face is visible upright and the trees are visible rotated, but both are faint.
+    </p>
+
+    <h4>3.4: Hybrid Images</h4>
+    <div class="hybrid">
+        <figure><img src="media/a/3-4-flower-skull.jpg" alt="Flower / skull hybrid"><figcaption>Close: "a charcoal drawing of a flower garden"</figcaption></figure>
+        <figure class="far"><img src="media/a/3-4-flower-skull.jpg" alt="Flower / skull hybrid, small"><figcaption>Far: "a charcoal drawing of a skull"</figcaption></figure>
+    </div>
+    <div class="hybrid">
+        <figure><img src="media/a/3-4-forest-wolf.jpg" alt="Forest / wolf hybrid"><figcaption>Close: "an oil painting of a pine forest"</figcaption></figure>
+        <figure class="far"><img src="media/a/3-4-forest-wolf.jpg" alt="Forest / wolf hybrid, small"><figcaption>Far: "an oil painting of a wolf's head"</figcaption></figure>
+    </div>
+    <p>
+        In the skull, the shading at the top forms the cranium and the two dark flowers form the eye sockets. The wolf
+        is subtler: up close it's just trees, and from far away the light and dark trees form the face.
+    </p>
+
+    <h2>Part B: Flow Matching from Scratch</h2>
+
+    <h3>Part 1: Single-Step Denoising UNet</h3>
+
+    <h4>1.2: Noising Process</h4>
+    <figure><img src="media/b/1-2.png" alt="MNIST digit at increasing noise levels"></figure>
+
+    <h4>1.2.1: Training</h4>
+    <figure class="narrow"><img src="media/b/1-2-1-loss-plot.png" alt="Denoiser training loss"><figcaption>Orange: 100-step moving average (same in all loss plots)</figcaption></figure>
+    <div class="gallery">
+        <figure><img src="media/b/1-2-1-epoch-1.png" alt="Denoising results after epoch 1"><figcaption>After epoch 1</figcaption></figure>
+        <figure><img src="media/b/1-2-1-epoch-5.png" alt="Denoising results after epoch 5"><figcaption>After epoch 5</figcaption></figure>
+    </div>
+    <p>After one epoch the digits are already recovered but dim and smudged. By epoch 5 they are bright and clean.</p>
+
+    <h4>1.2.2: Out-of-Distribution Testing</h4>
+    <figure class="narrow"><img src="media/b/1-2-2.png" alt="Out-of-distribution denoising"></figure>
+    <p>
+        Up to σ = 0.6 it still works well. At 0.8 and 1.0 it starts turning noise into strokes: the 7 starts to look
+        like a Z, and the 1 grows a crossbar.
+    </p>
+
+    <h4>1.2.3: Denoising Pure Noise</h4>
+    <figure class="narrow"><img src="media/b/1-2-3-loss-plot.png" alt="Pure noise training loss"></figure>
+    <div class="gallery">
+        <figure><img src="media/b/1-2-3-epoch-1.png" alt="Pure noise outputs after epoch 1"><figcaption>After epoch 1</figcaption></figure>
+        <figure><img src="media/b/1-2-3-epoch-5.png" alt="Pure noise outputs after epoch 5"><figcaption>After epoch 5</figcaption></figure>
+    </div>
+    <figure style="max-width: 231px; margin: 0 auto 20px;"><img src="media/b/1-2-3-mean.png" alt="Mean training digit"></figure>
+    <p>
+        <b>Patterns:</b> every input gives the same blurry blob, a ghostly mix of 0, 3 and 8, nearly identical to the
+        mean of all training digits above. It isn't any one of the classes 0 to 9 but an overlay of all of them. The
+        loss flattens out at about 0.07 within the first ~100 steps and never improves.
+    </p>
+    <p>
+        <b>Why:</b> the noise carries no information about which digit is the target, so the best the network can do
+        is give the same answer every time. Under MSE, the single output that minimizes the average squared error to
+        all training digits is their mean. So the network learns to ignore its input and output the average digit.
+    </p>
+
+    <h3>Part 2: Flow Matching Model</h3>
+
+    <h4>2.2: Training the Time-Conditioned UNet</h4>
+    <figure class="narrow"><img src="media/b/2-2.png" alt="Time-conditioned training loss"></figure>
+
+    <h4>2.3: Sampling from the Time-Conditioned UNet</h4>
+    <figure><img src="media/b/2-3-epoch-1.png" alt="Time-conditioned samples after epoch 1"><figcaption>After epoch 1</figcaption></figure>
+    <figure><img src="media/b/2-3-epoch-5.png" alt="Time-conditioned samples after epoch 5"><figcaption>After epoch 5</figcaption></figure>
+    <figure><img src="media/b/2-3-epoch-10.png" alt="Time-conditioned samples after epoch 10"><figcaption>After epoch 10</figcaption></figure>
+    <p>
+        After epoch 1 the samples are digit-like squiggles. By epoch 5 most are readable, and by epoch 10 most are
+        clean digits, though a few are still malformed.
+    </p>
+
+    <h4>2.5: Training the Class-Conditioned UNet</h4>
+    <figure class="narrow"><img src="media/b/2-5-loss-plot.png" alt="Class-conditioned training loss"></figure>
+
+    <h4>2.6: Sampling from the Class-Conditioned UNet</h4>
+    <figure><img src="media/b/2-6-epoch-1.png" alt="Class-conditioned samples after epoch 1"><figcaption>After epoch 1</figcaption></figure>
+    <figure><img src="media/b/2-6-epoch-5.png" alt="Class-conditioned samples after epoch 5"><figcaption>After epoch 5</figcaption></figure>
+    <figure><img src="media/b/2-6-epoch-10.png" alt="Class-conditioned samples after epoch 10"><figcaption>After epoch 10</figcaption></figure>
+    <p>
+        After one epoch most samples are already the requested digit, but rough (the 4s and 8s are barely readable).
+        By epoch 5 they are clean, and epoch 10 is about the same. This is much better than the time-only model, since
+        the model no longer has to decide which digit to draw.
+    </p>
+
+    <p><b>Without the learning rate scheduler.</b></p>
+    <p>
+        To make up for removing the decay, I used a constant learning rate of 10<sup>−3</sup> instead of
+        10<sup>−2</sup>, which is the rate the schedule decays to by the end.
+    </p>
+    <figure class="narrow"><img src="media/b/2-5-loss-plot-no-scheduler.png" alt="Training loss without scheduler"></figure>
+    <figure><img src="media/b/2-6-epoch-1-no-sched.png" alt="No-scheduler samples after epoch 1"><figcaption>After epoch 1</figcaption></figure>
+    <figure><img src="media/b/2-6-epoch-5-no-sched.png" alt="No-scheduler samples after epoch 5"><figcaption>After epoch 5</figcaption></figure>
+    <figure><img src="media/b/2-6-epoch-10-no-sched.png" alt="No-scheduler samples after epoch 10"><figcaption>After epoch 10</figcaption></figure>
+    <p>
+        Performance held up. After 10 epochs the samples look as good as with the scheduler, and after epoch 1 they
+        are actually cleaner, since 10<sup>−3</sup> is a steadier starting rate than 10<sup>−2</sup>. The loss curve
+        is a bit noisier at the end, since the learning rate never decreases.
+    </p>
+
+    <h2>What I Learned</h2>
+    <p>
+        Training with MSE makes a model predict the average of all possible answers. That's why the pure-noise
+        denoiser outputs the mean digit, and why one-step denoising is a bit blurry. Taking many small steps lets the
+        model commit to one sharp answer instead.
+    </p>
+</body>
+</html>
