@@ -267,5 +267,111 @@ def warpImageBilinear(im, H, bounds=None):
         switches, and wherever the images are misaligned, the detail on either side of that line doesn't quite match
         up. Blending can only hide misalignment, not fix it.
     </p>
+
+    <h2>Part B: Feature Matching for Autostitching</h2>
+    <p>
+        In Part B the correspondences are found automatically instead of clicked, following the MOPS paper: detect
+        corners, describe the patch around each one, match them between the two photos, and fit a homography with
+        RANSAC. The feature steps run on the photos downscaled by 4 (540 × 720), and the final mosaic is built at
+        full size with the Part A code.
+    </p>
+
+    <h3>B.1: Harris Corner Detection</h3>
+    <p>
+        The Harris detector finds corners, points where the image changes a lot in every direction. It returns
+        thousands of them, many weak, so I kept only those with a Harris response h &gt; 0.01 · max(h). I downscaled
+        the photos first because at full resolution it picked up a lot of useless wall and fabric texture.
+    </p>
+    <p>
+        The remaining corners still bunch up in the most textured parts of the photo. Adaptive non-maximal
+        suppression (ANMS) spreads them out. Each corner gets a radius, the distance to the nearest corner that is
+        clearly stronger than it:
+    </p>
+<pre><code>r_i = min_j |x_i − x_j|   over j with   f(x_i) &lt; c_robust · f(x_j),   c_robust = 0.9</code></pre>
+    <p>
+        I kept the 500 corners with the largest radii, which gives corners that are strong and evenly spread out.
+    </p>
+    <div class="gallery">
+        <figure><img src="media/b/b1-bed-left-harris.jpg" alt="Bed, Harris corners"><figcaption>Bed: Harris corners</figcaption></figure>
+        <figure><img src="media/b/b1-bed-left-anms.jpg" alt="Bed, corners after ANMS"><figcaption>Bed: after ANMS</figcaption></figure>
+    </div>
+    <div class="gallery">
+        <figure><img src="media/b/b1-desk-left-harris.jpg" alt="Desk, Harris corners"><figcaption>Desk: Harris corners</figcaption></figure>
+        <figure><img src="media/b/b1-desk-left-anms.jpg" alt="Desk, corners after ANMS"><figcaption>Desk: after ANMS</figcaption></figure>
+    </div>
+    <div class="gallery">
+        <figure><img src="media/b/b1-sink-left-harris.jpg" alt="Sink, Harris corners"><figcaption>Sink: Harris corners</figcaption></figure>
+        <figure><img src="media/b/b1-sink-left-anms.jpg" alt="Sink, corners after ANMS"><figcaption>Sink: after ANMS</figcaption></figure>
+    </div>
+
+    <h3>B.2: Feature Descriptor Extraction</h3>
+    <p>
+        Each corner is described by the 40 × 40 window around it, blurred and sampled every 5 pixels to get an
+        8 × 8 patch. Each patch is then bias/gain normalized,
+    </p>
+<pre><code>d = (p − μ) / σ</code></pre>
+    <p>so that brightness and contrast differences between the photos don't matter.</p>
+    <figure><img src="media/b/b2-desk-left-descriptors.jpg" alt="Six descriptors from the desk photo"><figcaption>Six random corners from the left desk photo. Top: the 40 × 40 window. Bottom: the normalized 8 × 8 descriptor.</figcaption></figure>
+
+    <h3>B.3: Feature Matching</h3>
+    <p>
+        For each descriptor in the left photo, I find the nearest and second-nearest descriptors in the right photo
+        (squared distances e<sub>1-NN</sub> and e<sub>2-NN</sub>) and keep the match only if
+    </p>
+<pre><code>e_1NN / e_2NN &lt; 0.5</code></pre>
+    <p>
+        A correct match should be much closer than every other candidate. In Figure 6b of the paper, correct and
+        incorrect matches cross at a ratio of about 0.65, so I picked 0.5 to reject most of the wrong ones. Some still
+        get through, which RANSAC takes care of.
+    </p>
+    <figure><img src="media/b/b3-bed-matches.jpg" alt="Bed matches"></figure>
+    <figure><img src="media/b/b3-desk-matches.jpg" alt="Desk matches"></figure>
+    <figure><img src="media/b/b3-sink-matches.jpg" alt="Sink matches"></figure>
+
+    <h3>B.4: RANSAC for Robust Homography</h3>
+    <p>
+        Least squares on all the matches would get pulled off by the wrong ones. RANSAC repeatedly fits H to 4
+        random matches and counts how many matches it maps to within 2 pixels of their partner (the inliers). After
+        1000 tries, it refits H by least squares on the largest inlier set.
+    </p>
+<pre><code>def ransac(p1, p2, iters=RANSAC_ITERS, eps=RANSAC_EPS, seed=0):
+    rng = np.random.default_rng(seed)
+    best = np.zeros(len(p1), bool)
+    with np.errstate(divide="ignore", invalid="ignore"):
+        for _ in range(iters):
+            idx = rng.choice(len(p1), 4, replace=False)
+            H = computeH(p1[idx], p2[idx])
+            inliers = np.linalg.norm(apply_H(H, p1) - p2, axis=1) &lt; eps
+            if inliers.sum() &gt; best.sum():
+                best = inliers
+    return computeH(p1[best], p2[best]), best</code></pre>
+    <p>
+        Since H is found on the downscaled photos, it's converted for the full-size ones with
+        S = diag(1/4, 1/4, 1):
+    </p>
+<pre><code>H_full = S⁻¹ H_small S</code></pre>
+    <p>The matches that survived RANSAC:</p>
+    <figure><img src="media/b/b4-bed-inliers.jpg" alt="Bed RANSAC inliers"></figure>
+    <figure><img src="media/b/b4-desk-inliers.jpg" alt="Desk RANSAC inliers"></figure>
+    <figure><img src="media/b/b4-sink-inliers.jpg" alt="Sink RANSAC inliers"></figure>
+
+    <h4>Manual vs. Automatic Stitching</h4>
+    <p>
+        Both are warped and blended the same way (Laplacian blend from A.4). The only difference is H: the manual one
+        comes from my 10 clicked pairs, the automatic one from all the RANSAC inliers. The parallax from A.1 affects
+        both.
+    </p>
+    <div class="gallery">
+        <figure><img src="media/a/a4-bed.jpg" alt="Bed, manual mosaic"><figcaption>Bed: manual</figcaption></figure>
+        <figure><img src="media/b/b4-bed.jpg" alt="Bed, automatic mosaic"><figcaption>Bed: automatic</figcaption></figure>
+    </div>
+    <div class="gallery">
+        <figure><img src="media/a/a4-desk.jpg" alt="Desk, manual mosaic"><figcaption>Desk: manual</figcaption></figure>
+        <figure><img src="media/b/b4-desk.jpg" alt="Desk, automatic mosaic"><figcaption>Desk: automatic</figcaption></figure>
+    </div>
+    <div class="gallery">
+        <figure><img src="media/a/a4-sink.jpg" alt="Sink, manual mosaic"><figcaption>Sink: manual</figcaption></figure>
+        <figure><img src="media/b/b4-sink.jpg" alt="Sink, automatic mosaic"><figcaption>Sink: automatic</figcaption></figure>
+    </div>
 </body>
 </html>
